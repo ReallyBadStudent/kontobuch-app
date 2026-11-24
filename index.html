@@ -102,6 +102,22 @@
   .wahl button.an[data-v="-1"] { background: rgba(255,107,107,.18); color: var(--minus); }
   .einst { width: 100%; text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--linie); }
   .einst:last-child { border-bottom: 0; }
+  /* Code-Sperre */
+  #sperre { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: none;
+    flex-direction: column; align-items: center; justify-content: center; gap: 22px;
+    padding: calc(var(--oben) + 20px) 24px calc(var(--unten) + 20px); }
+  #sperre.offen { display: flex; }
+  #sperre .stitel { font-size: 20px; font-weight: 600; }
+  #sperre .sinfo { color: var(--leise); font-size: 14px; min-height: 20px; text-align: center; }
+  .punkte { display: flex; gap: 16px; }
+  .punkte span { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--leise); }
+  .punkte span.voll { background: var(--text); border-color: var(--text); }
+  .punkte.wackeln { animation: wackeln .35s; }
+  @keyframes wackeln { 20%,60% { transform: translateX(-10px); } 40%,80% { transform: translateX(10px); } }
+  .tasten { display: grid; grid-template-columns: repeat(3, 76px); gap: 16px; }
+  .tasten button { height: 76px; border-radius: 50%; background: var(--karte2); font-size: 28px; }
+  .tasten button:active { background: var(--linie); }
+  .tasten button.ohne { background: none; font-size: 16px; color: var(--leise); }
 </style>
 </head>
 <body>
@@ -148,6 +164,7 @@
     <button class="einst" id="startAendern">Startkontostand ändern</button>
     <button class="einst" id="sichern">Sicherung als Datei speichern</button>
     <button class="einst" id="laden">Sicherung laden</button>
+    <button class="einst" id="codeAendern">Code ändern</button>
   </div>
   <p class="hinweis">Alle Daten bleiben nur auf diesem Gerät. Nichts wird hochgeladen.</p>
   <input type="file" id="datei" accept="application/json" hidden>
@@ -184,6 +201,18 @@
     <button class="gross blau" type="submit">Los geht's</button>
     <button class="abbruch" type="button" data-zu id="startAbbruch">Abbrechen</button>
   </form>
+</div>
+
+<div id="sperre">
+  <div class="stitel" id="sTitel">Code eingeben</div>
+  <div class="punkte" id="sPunkte"><span></span><span></span><span></span><span></span></div>
+  <div class="sinfo" id="sInfo"></div>
+  <div class="tasten" id="sTasten">
+    <button>1</button><button>2</button><button>3</button>
+    <button>4</button><button>5</button><button>6</button>
+    <button>7</button><button>8</button><button>9</button>
+    <button class="ohne" id="sVergessen">Vergessen?</button><button>0</button><button class="ohne" data-loeschen>⌫</button>
+  </div>
 </div>
 
 <script>
@@ -347,8 +376,67 @@ let letzterTag = heute();
 const tagCheck = () => { if (heute() !== letzterTag) { if (gewaehlt === letzterTag) gewaehlt = heute(); letzterTag = heute(); monat = new Date(); monat.setDate(1); zeigeKonto(); } };
 document.addEventListener("visibilitychange", tagCheck); setInterval(tagCheck, 60000);
 
+// ---------- Code-Sperre ----------
+// Der Code wird nur als Prüfsumme (SHA-256 mit Salz) gespeichert, nie im Klartext.
+const PKEY = "kontobuch-code";
+let code; try { code = JSON.parse(localStorage.getItem(PKEY) || "null"); } catch { code = null; }
+const pruefsumme = async (pin, salz) => {
+  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(salz + ":" + pin));
+  return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join("");
+};
+let eingabe = "", modus = "entsperren", ersterCode = "", fehler = 0, gesperrtBis = 0;
+const zeigePunkte = () => document.querySelectorAll("#sPunkte span").forEach((p, i) => p.classList.toggle("voll", i < eingabe.length));
+const wackeln = () => { const p = $("#sPunkte"); p.classList.remove("wackeln"); void p.offsetWidth; p.classList.add("wackeln"); };
+function sperren(m = code ? "entsperren" : "neu") {
+  modus = m; eingabe = ""; ersterCode = ""; zeigePunkte();
+  $("#sTitel").textContent = m === "entsperren" ? "Code eingeben" : "Neuen Code festlegen";
+  $("#sInfo").textContent = m === "neu" ? "4 Ziffern, die nur du kennst." : "";
+  $("#sVergessen").style.visibility = m === "entsperren" ? "visible" : "hidden";
+  $("#sperre").classList.add("offen");
+}
+async function fertig() {
+  if (modus === "entsperren") {
+    if (Date.now() < gesperrtBis) { eingabe = ""; zeigePunkte(); return; }
+    if (await pruefsumme(eingabe, code.salz) === code.hash) {
+      fehler = 0; $("#sperre").classList.remove("offen");
+      if (daten.start === null) { $("#startAbbruch").style.display = "none"; oeffne($("#fStart")); }
+    } else {
+      fehler++; wackeln();
+      if (fehler >= 5) { gesperrtBis = Date.now() + 30000; fehler = 0; $("#sInfo").textContent = "Zu oft falsch. 30 Sekunden warten."; }
+      else $("#sInfo").textContent = "Falscher Code";
+    }
+  } else if (modus === "neu") {
+    ersterCode = eingabe; modus = "bestaetigen"; $("#sTitel").textContent = "Code wiederholen"; $("#sInfo").textContent = "";
+  } else if (modus === "bestaetigen") {
+    if (eingabe === ersterCode) {
+      const salz = crypto.getRandomValues(new Uint32Array(4)).join("-");
+      code = { salz, hash: await pruefsumme(eingabe, salz) };
+      try { localStorage.setItem(PKEY, JSON.stringify(code)); } catch {}
+      $("#sperre").classList.remove("offen");
+      if (daten.start === null) { $("#startAbbruch").style.display = "none"; oeffne($("#fStart")); }
+    } else { wackeln(); modus = "neu"; $("#sTitel").textContent = "Neuen Code festlegen"; $("#sInfo").textContent = "Stimmte nicht überein, nochmal."; }
+  }
+  eingabe = ""; zeigePunkte();
+}
+$("#sTasten").onclick = (e) => {
+  const b = e.target.closest("button"); if (!b || b.id === "sVergessen") return;
+  if (b.hasAttribute("data-loeschen")) eingabe = eingabe.slice(0, -1);
+  else if (eingabe.length < 4) eingabe += b.textContent;
+  zeigePunkte();
+  if (eingabe.length === 4) setTimeout(fertig, 120);
+};
+$("#sVergessen").onclick = () => {
+  if (confirm("Code vergessen? Dann lässt sich die App nur zurücksetzen. ALLE Daten (Kontostand, Einträge, To-dos) werden gelöscht. Hast du eine Sicherung, kannst du sie danach laden.")
+      && confirm("Wirklich alles löschen und neu anfangen?")) {
+    localStorage.removeItem(KEY); localStorage.removeItem(PKEY); location.reload();
+  }
+};
+$("#codeAendern").onclick = () => sperren("neu");
+// Beim Wechsel in eine andere App sofort sperren
+document.addEventListener("visibilitychange", () => { if (document.hidden && code) sperren("entsperren"); });
+
 alles();
-if (daten.start === null) { $("#startAbbruch").style.display = "none"; oeffne($("#fStart")); }
+sperren();
 if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});
 </script>
 </body>
