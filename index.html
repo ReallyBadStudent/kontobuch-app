@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Kontobuch">
+<meta name="theme-color" content="#0f1115">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>Kontobuch</title>
+<style>
+  :root {
+    --bg: #0f1115; --karte: #181b22; --karte2: #20242d; --linie: #2a2f3a;
+    --text: #f2f4f8; --leise: #8b93a3; --akzent: #6c8cff;
+    --plus: #3ecf8e; --minus: #ff6b6b;
+    --oben: env(safe-area-inset-top); --unten: env(safe-area-inset-bottom);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; }
+  body { min-height: 100dvh; padding: calc(var(--oben) + 12px) 16px calc(var(--unten) + 84px); }
+  button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+  input { font: inherit; color: var(--text); background: var(--karte2); border: 1px solid var(--linie);
+    border-radius: 12px; padding: 12px 14px; width: 100%; outline: none; }
+  input:focus { border-color: var(--akzent); }
+  .seite { display: none; } .seite.aktiv { display: block; }
+
+  /* Kontostand */
+  .stand { background: linear-gradient(135deg, #232a3d, #181b22); border: 1px solid var(--linie);
+    border-radius: 20px; padding: 18px 20px; margin-bottom: 16px; }
+  .stand .titel { color: var(--leise); font-size: 13px; text-transform: uppercase; letter-spacing: .06em; }
+  .stand .betrag { font-size: 38px; font-weight: 700; letter-spacing: -.02em; margin-top: 2px; }
+  .stand .neben { color: var(--leise); font-size: 14px; margin-top: 4px; }
+  .neg { color: var(--minus) !important; } .pos { color: var(--plus) !important; }
+
+  /* Kalender */
+  .kal { background: var(--karte); border-radius: 20px; padding: 14px; margin-bottom: 16px; }
+  .kalkopf { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .kalkopf .monat { font-weight: 600; font-size: 17px; }
+  .kalkopf button { width: 36px; height: 36px; border-radius: 10px; background: var(--karte2); font-size: 18px; }
+  .raster { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
+  .wt { color: var(--leise); font-size: 12px; padding-bottom: 4px; }
+  .tag { aspect-ratio: 1 / 1.05; border-radius: 12px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; font-size: 15px; position: relative; }
+  .tag.leer { visibility: hidden; }
+  .tag.heute { border: 1.5px solid var(--akzent); }
+  .tag.gewaehlt { background: var(--akzent); color: #fff; }
+  .tag .punkt { width: 5px; height: 5px; border-radius: 50%; margin-top: 3px; background: var(--leise); }
+  .tag .punkt.pos { background: var(--plus); } .tag .punkt.neg { background: var(--minus); }
+  .tag.gewaehlt .punkt { background: #fff; }
+
+  /* Buchungen */
+  .abschnitt { display: flex; align-items: baseline; justify-content: space-between; margin: 4px 4px 8px; }
+  .abschnitt h2 { font-size: 17px; margin: 0; }
+  .abschnitt span { color: var(--leise); font-size: 14px; }
+  .liste { background: var(--karte); border-radius: 16px; overflow: hidden; margin-bottom: 16px; }
+  .zeile { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-bottom: 1px solid var(--linie); }
+  .zeile:last-child { border-bottom: 0; }
+  .zeile .text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .zeile .wert { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .zeile .weg { color: var(--leise); font-size: 20px; padding: 0 2px; }
+  .hinweis { color: var(--leise); text-align: center; padding: 18px; font-size: 14px; }
+
+  .knoepfe { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .gross { border-radius: 14px; padding: 14px; font-weight: 600; font-size: 16px; }
+  .gross.minus { background: rgba(255,107,107,.15); color: var(--minus); }
+  .gross.plus { background: rgba(62,207,142,.15); color: var(--plus); }
+  .gross.blau { background: var(--akzent); color: #fff; width: 100%; }
+
+  /* To-dos */
+  .todoein { display: flex; gap: 8px; margin-bottom: 14px; }
+  .todoein button { background: var(--akzent); color: #fff; border-radius: 12px; padding: 0 18px; font-weight: 600; font-size: 22px; }
+  .haken { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--leise); flex: none;
+    display: flex; align-items: center; justify-content: center; font-size: 14px; color: #fff; }
+  .erledigt .haken { background: var(--plus); border-color: var(--plus); }
+  .erledigt .text { color: var(--leise); text-decoration: line-through; }
+
+  /* Leiste unten */
+  nav { position: fixed; left: 0; right: 0; bottom: 0; display: flex; background: rgba(15,17,21,.92);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-top: 1px solid var(--linie);
+    padding: 8px 0 calc(var(--unten) + 8px); }
+  nav button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+    font-size: 11px; color: var(--leise); }
+  nav button .sym { font-size: 22px; line-height: 1; }
+  nav button.aktiv { color: var(--akzent); }
+
+  /* Fenster */
+  .huelle { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: none; align-items: flex-end; z-index: 10; }
+  .huelle.offen { display: flex; }
+  .fenster { background: var(--karte); width: 100%; border-radius: 22px 22px 0 0;
+    padding: 20px 16px calc(var(--unten) + 20px); display: grid; gap: 12px; }
+  .fenster h3 { margin: 0 0 4px; font-size: 18px; }
+  .fenster .klein { color: var(--leise); font-size: 14px; }
+  .fenster .reihe { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .abbruch { color: var(--leise); padding: 6px; }
+  .einst { width: 100%; text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--linie); }
+  .einst:last-child { border-bottom: 0; }
+</style>
+</head>
+<body>
+
+<!-- KONTO -->
+<section class="seite aktiv" id="s-konto">
+  <div class="stand">
+    <div class="titel">Kontostand heute</div>
+    <div class="betrag" id="standHeute">0,00 €</div>
+    <div class="neben" id="standTag"></div>
+  </div>
+
+  <div class="kal">
+    <div class="kalkopf">
+      <button id="vor" aria-label="Voriger Monat">‹</button>
+      <div class="monat" id="monat"></div>
+      <button id="nach" aria-label="Nächster Monat">›</button>
+    </div>
+    <div class="raster" id="raster"></div>
+  </div>
+
+  <div class="abschnitt"><h2 id="tagTitel">Heute</h2><span id="tagSumme"></span></div>
+  <div class="liste" id="buchungen"></div>
+  <div class="knoepfe">
+    <button class="gross minus" data-art="aus">− Ausgabe</button>
+    <button class="gross plus" data-art="ein">+ Einnahme</button>
+  </div>
+</section>
+
+<!-- TO-DO -->
+<section class="seite" id="s-todo">
+  <div class="abschnitt" style="margin-top:6px"><h2 style="font-size:28px">To-dos</h2><span id="todoZahl"></span></div>
+  <form class="todoein" id="todoForm">
+    <input id="todoText" placeholder="Neue Aufgabe …" autocomplete="off">
+    <button type="submit" aria-label="Hinzufügen">+</button>
+  </form>
+  <div class="liste" id="todos"></div>
+</section>
+
+<!-- EINSTELLUNGEN -->
+<section class="seite" id="s-einst">
+  <div class="abschnitt" style="margin-top:6px"><h2 style="font-size:28px">Einstellungen</h2></div>
+  <div class="liste">
+    <button class="einst" id="startAendern">Startkontostand ändern</button>
+    <button class="einst" id="sichern">Sicherung als Datei speichern</button>
+    <button class="einst" id="laden">Sicherung laden</button>
+  </div>
+  <p class="hinweis">Alle Daten bleiben nur auf diesem Gerät. Nichts wird hochgeladen.</p>
+  <input type="file" id="datei" accept="application/json" hidden>
+</section>
+
+<nav>
+  <button class="aktiv" data-seite="konto"><span class="sym">▦</span>Konto</button>
+  <button data-seite="todo"><span class="sym">✓</span>To-dos</button>
+  <button data-seite="einst"><span class="sym">⚙︎</span>Einstellungen</button>
+</nav>
+
+<!-- Fenster: Buchung -->
+<div class="huelle" id="fBuchung">
+  <form class="fenster" id="buchungForm">
+    <h3 id="fTitel">Ausgabe</h3>
+    <div class="klein" id="fDatum"></div>
+    <input id="fBetrag" inputmode="decimal" placeholder="Betrag, z. B. 12,50" autocomplete="off" required>
+    <input id="fNotiz" placeholder="Wofür? (optional)" autocomplete="off">
+    <button class="gross blau" type="submit">Speichern</button>
+    <button class="abbruch" type="button" data-zu>Abbrechen</button>
+  </form>
+</div>
+
+<!-- Fenster: Startkontostand -->
+<div class="huelle" id="fStart">
+  <form class="fenster" id="startForm">
+    <h3>Dein Kontostand</h3>
+    <div class="klein">Trag einmal ein, wie viel gerade auf deinem Konto ist. Minus geht auch, z. B. −250.</div>
+    <input id="startBetrag" inputmode="decimal" placeholder="z. B. 1.234,56" autocomplete="off" required>
+    <button class="gross blau" type="submit">Los geht's</button>
+    <button class="abbruch" type="button" data-zu id="startAbbruch">Abbrechen</button>
+  </form>
+</div>
+
+<script>
+// ---------- Speicher (nur auf dem Gerät) ----------
+const KEY = "kontobuch-v1";
+const leer = { start: null, startDatum: null, buchungen: [], todos: [] };
+let daten;
+try { daten = Object.assign({}, leer, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch { daten = { ...leer }; }
+const speichern = () => { try { localStorage.setItem(KEY, JSON.stringify(daten)); } catch {} };
+
+// ---------- Hilfen ----------
+const $ = (s) => document.querySelector(s);
+const euro = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
+const fmt = (c) => euro.format(c / 100);                       // Beträge intern in Cent
+const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const heute = () => iso(new Date());
+const id = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+function zuCent(text) {
+  let t = String(text).trim().replace(/\s|€/g, "").replace("−", "-");
+  if (t.includes(",")) t = t.replace(/\./g, "").replace(",", ".");   // 1.234,56 → 1234.56
+  const n = Number(t);
+  return Number.isFinite(n) ? Math.round(n * 100) : null;
+}
+const stand = (bis) => (daten.start || 0) + daten.buchungen.filter(b => b.datum <= bis).reduce((s, b) => s + b.betrag, 0);
+const farbe = (el, c) => { el.classList.toggle("neg", c < 0); };
+
+// ---------- Ansicht ----------
+let gewaehlt = heute();
+let monat = new Date(); monat.setDate(1);
+const MONATE = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+
+function zeigeKonto() {
+  const h = heute();
+  const sh = stand(h);
+  $("#standHeute").textContent = fmt(sh); farbe($("#standHeute"), sh);
+  const tagDat = new Date(gewaehlt + "T12:00");
+  const lang = tagDat.toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" });
+  if (gewaehlt !== h) {
+    const sg = stand(gewaehlt);
+    $("#standTag").innerHTML = `Am Ende von ${lang}: <b class="${sg < 0 ? "neg" : ""}">${fmt(sg)}</b>`;
+  } else $("#standTag").textContent = new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+  // Kalender
+  $("#monat").textContent = `${MONATE[monat.getMonth()]} ${monat.getFullYear()}`;
+  const r = $("#raster"); r.innerHTML = "";
+  ["Mo","Di","Mi","Do","Fr","Sa","So"].forEach(w => r.insertAdjacentHTML("beforeend", `<div class="wt">${w}</div>`));
+  const versatz = (monat.getDay() + 6) % 7;
+  for (let i = 0; i < versatz; i++) r.insertAdjacentHTML("beforeend", `<div class="tag leer"></div>`);
+  const tage = new Date(monat.getFullYear(), monat.getMonth() + 1, 0).getDate();
+  for (let t = 1; t <= tage; t++) {
+    const d = iso(new Date(monat.getFullYear(), monat.getMonth(), t));
+    const summe = daten.buchungen.filter(b => b.datum === d).reduce((s, b) => s + b.betrag, 0);
+    const hat = daten.buchungen.some(b => b.datum === d);
+    const k = ["tag", d === h ? "heute" : "", d === gewaehlt ? "gewaehlt" : ""].join(" ");
+    const p = hat ? `<span class="punkt ${summe < 0 ? "neg" : summe > 0 ? "pos" : ""}"></span>` : `<span class="punkt" style="visibility:hidden"></span>`;
+    r.insertAdjacentHTML("beforeend", `<button class="${k}" data-d="${d}">${t}${p}</button>`);
+  }
+
+  // Buchungen des Tages
+  $("#tagTitel").textContent = gewaehlt === h ? "Heute" : tagDat.toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "long" });
+  const liste = daten.buchungen.filter(b => b.datum === gewaehlt);
+  const summe = liste.reduce((s, b) => s + b.betrag, 0);
+  $("#tagSumme").textContent = liste.length ? (summe > 0 ? "+" : "") + fmt(summe) : "";
+  $("#buchungen").innerHTML = liste.length ? liste.map(b => `
+    <div class="zeile">
+      <div class="text">${esc(b.notiz) || (b.betrag < 0 ? "Ausgabe" : "Einnahme")}</div>
+      <div class="wert ${b.betrag < 0 ? "neg" : "pos"}">${b.betrag > 0 ? "+" : ""}${fmt(b.betrag)}</div>
+      <button class="weg" data-weg="${b.id}" aria-label="Löschen">×</button>
+    </div>`).join("") : `<div class="hinweis">Noch keine Einträge an diesem Tag.</div>`;
+}
+
+function zeigeTodos() {
+  const offen = daten.todos.filter(t => !t.fertig).length;
+  $("#todoZahl").textContent = daten.todos.length ? `${offen} offen` : "";
+  const sortiert = [...daten.todos].sort((a, b) => a.fertig - b.fertig);
+  $("#todos").innerHTML = sortiert.length ? sortiert.map(t => `
+    <div class="zeile ${t.fertig ? "erledigt" : ""}">
+      <button class="haken" data-haken="${t.id}">${t.fertig ? "✓" : ""}</button>
+      <div class="text">${esc(t.text)}</div>
+      <button class="weg" data-todoweg="${t.id}" aria-label="Löschen">×</button>
+    </div>`).join("") : `<div class="hinweis">Keine Aufgaben. Schön!</div>`;
+}
+const esc = (s) => String(s || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const alles = () => { zeigeKonto(); zeigeTodos(); };
+
+// ---------- Bedienung ----------
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("aktiv", x === b));
+  document.querySelectorAll(".seite").forEach(s => s.classList.toggle("aktiv", s.id === "s-" + b.dataset.seite));
+  window.scrollTo(0, 0);
+});
+$("#vor").onclick = () => { monat.setMonth(monat.getMonth() - 1); zeigeKonto(); };
+$("#nach").onclick = () => { monat.setMonth(monat.getMonth() + 1); zeigeKonto(); };
+$("#raster").onclick = (e) => { const t = e.target.closest("[data-d]"); if (t) { gewaehlt = t.dataset.d; zeigeKonto(); } };
+
+const oeffne = (el) => { el.classList.add("offen"); setTimeout(() => el.querySelector("input")?.focus(), 50); };
+const schliesse = (el) => el.classList.remove("offen");
+document.querySelectorAll("[data-zu]").forEach(b => b.onclick = () => schliesse(b.closest(".huelle")));
+document.querySelectorAll(".huelle").forEach(h => h.onclick = (e) => { if (e.target === h && daten.start !== null) schliesse(h); });
+
+let art = "aus";
+document.querySelectorAll("[data-art]").forEach(b => b.onclick = () => {
+  art = b.dataset.art;
+  $("#fTitel").textContent = art === "aus" ? "Ausgabe" : "Einnahme";
+  $("#fDatum").textContent = new Date(gewaehlt + "T12:00").toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  $("#fBetrag").value = ""; $("#fNotiz").value = "";
+  oeffne($("#fBuchung"));
+});
+$("#buchungForm").onsubmit = (e) => {
+  e.preventDefault();
+  const c = zuCent($("#fBetrag").value);
+  if (c === null || c === 0) { $("#fBetrag").focus(); return; }
+  daten.buchungen.push({ id: id(), datum: gewaehlt, betrag: art === "aus" ? -Math.abs(c) : Math.abs(c), notiz: $("#fNotiz").value.trim() });
+  speichern(); schliesse($("#fBuchung")); zeigeKonto();
+};
+$("#buchungen").onclick = (e) => {
+  const b = e.target.closest("[data-weg]"); if (!b) return;
+  if (confirm("Eintrag löschen?")) { daten.buchungen = daten.buchungen.filter(x => x.id !== b.dataset.weg); speichern(); zeigeKonto(); }
+};
+
+$("#todoForm").onsubmit = (e) => {
+  e.preventDefault(); const t = $("#todoText").value.trim(); if (!t) return;
+  daten.todos.push({ id: id(), text: t, fertig: false }); $("#todoText").value = ""; speichern(); zeigeTodos();
+};
+$("#todos").onclick = (e) => {
+  const h = e.target.closest("[data-haken]"), w = e.target.closest("[data-todoweg]");
+  if (h) { const t = daten.todos.find(x => x.id === h.dataset.haken); t.fertig = !t.fertig; }
+  if (w) daten.todos = daten.todos.filter(x => x.id !== w.dataset.todoweg);
+  if (h || w) { speichern(); zeigeTodos(); }
+};
+
+// Startkontostand
+$("#startForm").onsubmit = (e) => {
+  e.preventDefault(); const c = zuCent($("#startBetrag").value);
+  if (c === null) { $("#startBetrag").focus(); return; }
+  daten.start = c; daten.startDatum = daten.startDatum || heute(); speichern(); schliesse($("#fStart")); zeigeKonto();
+};
+$("#startAendern").onclick = () => { $("#startBetrag").value = daten.start !== null ? (daten.start / 100).toFixed(2).replace(".", ",") : ""; $("#startAbbruch").style.display = ""; oeffne($("#fStart")); };
+
+// Sicherung als Datei (bleibt auf dem Gerät, z. B. in „Dateien“)
+$("#sichern").onclick = () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(daten, null, 2)], { type: "application/json" }));
+  a.download = `kontobuch-sicherung-${heute()}.json`; a.click();
+};
+$("#laden").onclick = () => $("#datei").click();
+$("#datei").onchange = async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  try { const neu = JSON.parse(await f.text());
+    if (!Array.isArray(neu.buchungen)) throw 0;
+    if (confirm("Sicherung laden? Die jetzigen Daten werden ersetzt.")) { daten = Object.assign({}, leer, neu); speichern(); alles(); }
+  } catch { alert("Das ist keine gültige Kontobuch-Sicherung."); }
+  e.target.value = "";
+};
+
+// Um Mitternacht / beim Zurückkehren in die App auf den neuen Tag springen
+let letzterTag = heute();
+const tagCheck = () => { if (heute() !== letzterTag) { if (gewaehlt === letzterTag) gewaehlt = heute(); letzterTag = heute(); monat = new Date(); monat.setDate(1); zeigeKonto(); } };
+document.addEventListener("visibilitychange", tagCheck); setInterval(tagCheck, 60000);
+
+alles();
+if (daten.start === null) { $("#startAbbruch").style.display = "none"; oeffne($("#fStart")); }
+if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>
