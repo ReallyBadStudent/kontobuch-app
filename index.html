@@ -64,7 +64,7 @@
   .zeile .weg { color: var(--leise); font-size: 20px; padding: 0 2px; }
   .hinweis { color: var(--leise); text-align: center; padding: 18px; font-size: 14px; }
 
-  .knoepfe { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .knoepfe { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
   .gross { border-radius: 14px; padding: 14px; font-weight: 600; font-size: 16px; }
   .gross.minus { background: rgba(255,107,107,.15); color: var(--minus); }
   .gross.plus { background: rgba(62,207,142,.15); color: var(--plus); }
@@ -119,12 +119,12 @@
     <div class="raster" id="raster"></div>
   </div>
 
-  <div class="abschnitt"><h2 id="tagTitel">Heute</h2><span id="tagSumme"></span></div>
-  <div class="liste" id="buchungen"></div>
   <div class="knoepfe">
     <button class="gross minus" data-art="aus">− Ausgabe</button>
     <button class="gross plus" data-art="ein">+ Einnahme</button>
   </div>
+  <div class="abschnitt"><h2 id="tagTitel">Heute</h2><span id="tagSumme"></span></div>
+  <div class="liste" id="buchungen"></div>
 </section>
 
 <!-- TO-DO -->
@@ -236,7 +236,7 @@ function zeigeKonto() {
 
   // Buchungen des Tages
   $("#tagTitel").textContent = gewaehlt === h ? "Heute" : tagDat.toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "long" });
-  const liste = daten.buchungen.filter(b => b.datum === gewaehlt);
+  const liste = daten.buchungen.filter(b => b.datum === gewaehlt).reverse();   // neueste oben
   const summe = liste.reduce((s, b) => s + b.betrag, 0);
   $("#tagSumme").textContent = liste.length ? (summe > 0 ? "+" : "") + fmt(summe) : "";
   $("#buchungen").innerHTML = liste.length ? liste.map(b => `
