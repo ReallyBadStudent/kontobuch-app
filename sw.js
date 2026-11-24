@@ -1,5 +1,5 @@
 // Offline-Speicher: die App-Dateien liegen danach auf dem Handy. Bei Änderungen VERSION erhöhen.
-const VERSION = "kontobuch-2";
+const VERSION = "kontobuch-3";
 const DATEIEN = ["./", "index.html", "manifest.webmanifest", "icon-180.png", "icon-192.png", "icon-512.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(DATEIEN))); self.skipWaiting(); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(k => Promise.all(k.filter(n => n !== VERSION).map(n => caches.delete(n))))); self.clients.claim(); });

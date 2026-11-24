@@ -96,6 +96,10 @@
   .fenster .klein { color: var(--leise); font-size: 14px; }
   .fenster .reihe { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .abbruch { color: var(--leise); padding: 6px; }
+  .wahl { display: grid; grid-template-columns: 1fr 1fr; background: var(--karte2); border-radius: 12px; padding: 4px; gap: 4px; }
+  .wahl button { border-radius: 9px; padding: 10px; color: var(--leise); font-weight: 600; }
+  .wahl button.an[data-v="1"] { background: rgba(62,207,142,.18); color: var(--plus); }
+  .wahl button.an[data-v="-1"] { background: rgba(255,107,107,.18); color: var(--minus); }
   .einst { width: 100%; text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--linie); }
   .einst:last-child { border-bottom: 0; }
 </style>
@@ -171,8 +175,12 @@
 <div class="huelle" id="fStart">
   <form class="fenster" id="startForm">
     <h3>Dein Kontostand</h3>
-    <div class="klein">Trag einmal ein, wie viel gerade auf deinem Konto ist. Minus geht auch, z. B. −250.</div>
-    <input id="startBetrag" inputmode="decimal" placeholder="z. B. 1.234,56" autocomplete="off" required>
+    <div class="klein">Trag einmal ein, wie viel gerade auf deinem Konto ist.</div>
+    <div class="wahl" id="vorzeichen">
+      <button type="button" data-v="1" class="an">Im Plus</button>
+      <button type="button" data-v="-1">Im Minus</button>
+    </div>
+    <input id="startBetrag" inputmode="decimal" placeholder="Betrag, z. B. 1.234,56" autocomplete="off" required>
     <button class="gross blau" type="submit">Los geht's</button>
     <button class="abbruch" type="button" data-zu id="startAbbruch">Abbrechen</button>
   </form>
@@ -307,13 +315,16 @@ $("#todos").onclick = (e) => {
   if (h || w) { speichern(); zeigeTodos(); }
 };
 
-// Startkontostand
+// Startkontostand (Plus/Minus per Schalter, weil die Handy-Zahlentastatur kein Minus hat)
+let vz = 1;
+const setzeVz = (v) => { vz = v; document.querySelectorAll("#vorzeichen button").forEach(b => b.classList.toggle("an", +b.dataset.v === v)); };
+document.querySelectorAll("#vorzeichen button").forEach(b => b.onclick = () => setzeVz(+b.dataset.v));
 $("#startForm").onsubmit = (e) => {
   e.preventDefault(); const c = zuCent($("#startBetrag").value);
   if (c === null) { $("#startBetrag").focus(); return; }
-  daten.start = c; daten.startDatum = daten.startDatum || heute(); speichern(); schliesse($("#fStart")); zeigeKonto();
+  daten.start = vz * Math.abs(c); daten.startDatum = daten.startDatum || heute(); speichern(); schliesse($("#fStart")); zeigeKonto();
 };
-$("#startAendern").onclick = () => { $("#startBetrag").value = daten.start !== null ? (daten.start / 100).toFixed(2).replace(".", ",") : ""; $("#startAbbruch").style.display = ""; oeffne($("#fStart")); };
+$("#startAendern").onclick = () => { setzeVz(daten.start < 0 ? -1 : 1); $("#startBetrag").value = daten.start !== null ? (Math.abs(daten.start) / 100).toFixed(2).replace(".", ",") : ""; $("#startAbbruch").style.display = ""; oeffne($("#fStart")); };
 
 // Sicherung als Datei (bleibt auf dem Gerät, z. B. in „Dateien“)
 $("#sichern").onclick = () => {
