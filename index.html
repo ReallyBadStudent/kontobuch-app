@@ -437,7 +437,18 @@ document.addEventListener("visibilitychange", () => { if (document.hidden && cod
 
 alles();
 sperren();
-if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});
+// Neue Version automatisch holen: beim Start und beim Zurückkehren nachsehen, dann einmal neu laden
+if ("serviceWorker" in navigator && location.protocol !== "file:") {
+  const hatteSteuerung = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then(reg => {
+    reg.update();
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) reg.update(); });
+  }).catch(() => {});
+  let neuGeladen = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (hatteSteuerung && !neuGeladen) { neuGeladen = true; location.reload(); }
+  });
+}
 </script>
 </body>
 </html>
